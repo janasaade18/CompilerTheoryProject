@@ -1,6 +1,7 @@
 C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_MinGW_64_bit-Debug/CompilerTheoryProject_autogen/EWIEGA46WW/moc_mainwindow.cpp: C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/mainwindow.h \
   C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_MinGW_64_bit-Debug/CompilerTheoryProject_autogen/moc_predefs.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/QPointF \
+  C:/Qt/6.9.3/mingw_64/include/QtCore/QString \
   C:/Qt/6.9.3/mingw_64/include/QtCore/q17memory.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/q20functional.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/q20iterator.h \
@@ -375,4 +376,7 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_Min
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/sys/types.h \
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/time.h \
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/vadefs.h \
-  C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h
+  C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h \
+  C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/ast.h \
+  C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/parser.h \
+  C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/token.h

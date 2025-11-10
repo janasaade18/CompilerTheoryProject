@@ -16,6 +16,9 @@
 #include <QGraphicsTextItem>
 #include <QMessageBox>
 #include <QPainter>
+#include <map>
+#include <set>
+#include <cmath>
 
 using namespace std;
 
@@ -86,9 +89,9 @@ void MainWindow::onAnalyzeClicked() {
 
         if (astRoot) {
             // Draw Automaton
-            drawAutomatonFromAst(astRoot.get(), QPointF(automatonScene->width() / 2, 50));
+            drawTrueAutomaton(parser);
 
-            // Draw Parse Tree
+            // Draw AST visualization in Parse Tree tab
             drawParseTree(astRoot.get(), QPointF(treeScene->width() / 2, 50));
 
             // Translate to C++
@@ -210,68 +213,182 @@ void MainWindow::drawParseTree(const ASTNode* node, QPointF pos, QPointF parentP
     }
 }
 
-void MainWindow::drawAutomatonFromAst(const ASTNode* node, QPointF pos, QPointF parentPos) {
-    if (!node) return;
+void MainWindow::drawTrueAutomaton(const Parser& parser) {
+    automatonScene->clear();
 
-    const QColor NODE_COLOR("#e53e3e"), LINE_COLOR("#a09393"), TEXT_COLOR("#f7fafc");
-    const QBrush NODE_BRUSH(QColor("#2c1d1d"));
-    QPen nodePen(NODE_COLOR, 2), linePen(LINE_COLOR, 1.5);
+    // Define all colors locally
+    const QColor STATE_COLOR("#e53e3e");
+    const QColor TRANSITION_COLOR("#48bb78");
+    const QColor TEXT_COLOR("#f7fafc");
+    const QColor HISTORY_COLOR("#ffeb3b");
+    const QColor CURRENT_STATE_COLOR("#ff9800");
+    const QBrush STATE_BRUSH(QColor("#2c1d1d"));
 
-    QGraphicsEllipseItem *state = automatonScene->addEllipse(0, 0, 150, 50, nodePen, NODE_BRUSH);
-    state->setPos(pos - QPointF(75, 25));
+    QPen statePen(STATE_COLOR, 3);
+    QPen transitionPen(TRANSITION_COLOR, 2);
+    QPen historyPen(HISTORY_COLOR, 6);
+    QPen currentStatePen(CURRENT_STATE_COLOR, 4);
 
-    QGraphicsTextItem *textItem = automatonScene->addText(node->getNodeName());
-    textItem->setDefaultTextColor(TEXT_COLOR);
-    textItem->setFont(QFont("Arial", 9, QFont::Bold));
+    // Create organized state positions
+    map<ParserState, QPointF> statePositions;
 
-    QRectF textRect = textItem->boundingRect();
-    QRectF ellipseRect = state->boundingRect();
-    textItem->setPos(
-        state->pos().x() + (ellipseRect.width() - textRect.width()) / 2,
-        state->pos().y() + (ellipseRect.height() - textRect.height()) / 2
-        );
+    // Organize states by category
+    vector<ParserState> programStates = {ParserState::START, ParserState::EXPECT_STATEMENT, ParserState::END_STATEMENT};
+    vector<ParserState> functionStates = {ParserState::IN_FUNCTION_DEF, ParserState::IN_FUNCTION_PARAMS, ParserState::IN_FUNCTION_BODY, ParserState::IN_FUNCTION_CALL};
+    vector<ParserState> controlStates = {ParserState::IN_IF_CONDITION, ParserState::IN_IF_BODY, ParserState::IN_TRY_BLOCK, ParserState::IN_EXCEPT_BLOCK};
+    vector<ParserState> expressionStates = {ParserState::IN_ASSIGNMENT, ParserState::IN_EXPRESSION, ParserState::IN_TERM, ParserState::IN_FACTOR, ParserState::EXPECT_OPERATOR, ParserState::EXPECT_OPERAND};
 
-    if (!parentPos.isNull()) {
-        automatonScene->addLine(QLineF(pos, parentPos), linePen);
+    // Position states in organized grid
+    int startX = 150, startY = 150;
+    int colSpacing = 350, rowSpacing = 120;
+
+    // Column 1: Program Flow
+    for (size_t i = 0; i < programStates.size(); ++i) {
+        statePositions[programStates[i]] = QPointF(startX, startY + i * rowSpacing);
     }
 
-    qreal yOffset = 100, xOffset = 200;
+    // Column 2: Functions
+    for (size_t i = 0; i < functionStates.size(); ++i) {
+        statePositions[functionStates[i]] = QPointF(startX + colSpacing, startY + i * rowSpacing);
+    }
 
-    if (auto p = dynamic_cast<const ProgramNode*>(node)) {
-        for (size_t i = 0; i < p->statements.size(); ++i) {
-            drawAutomatonFromAst(p->statements[i].get(), pos + QPointF(i * xOffset - (p->statements.size()-1)*xOffset/2.0, yOffset), pos);
+    // Column 3: Control Structures
+    for (size_t i = 0; i < controlStates.size(); ++i) {
+        statePositions[controlStates[i]] = QPointF(startX + colSpacing * 2, startY + i * rowSpacing);
+    }
+
+    // Column 4: Expressions
+    for (size_t i = 0; i < expressionStates.size(); ++i) {
+        statePositions[expressionStates[i]] = QPointF(startX + colSpacing * 3, startY + i * rowSpacing);
+    }
+
+    // USE REAL PARSER DATA
+    vector<AutomatonTransition> transitions = parser.getTransitions();
+    vector<pair<ParserState, Token>> stateHistory = parser.getStateHistory();
+
+    // If no real transitions were recorded, show a message
+    if (transitions.empty()) {
+        QGraphicsTextItem* noDataText = automatonScene->addText("No automaton data available.\nParser transitions were not recorded.");
+        noDataText->setDefaultTextColor(QColor("#ff6b6b"));
+        noDataText->setFont(QFont("Arial", 14, QFont::Bold));
+        noDataText->setPos(400, 400);
+        return;
+    }
+
+    // Draw transitions
+    for (const auto& transition : transitions) {
+        QPointF fromPos = statePositions[transition.fromState];
+        QPointF toPos = statePositions[transition.toState];
+
+        // Draw straight line for simplicity
+        QLineF line(fromPos, toPos);
+        automatonScene->addLine(line, transitionPen);
+
+        // Draw arrow head
+        double angle = std::atan2(-line.dy(), line.dx());
+        QPointF arrowP1 = toPos + QPointF(sin(angle + M_PI / 3) * 15, cos(angle + M_PI / 3) * 15);
+        QPointF arrowP2 = toPos + QPointF(sin(angle + M_PI - M_PI / 3) * 15, cos(angle + M_PI - M_PI / 3) * 15);
+
+        QPolygonF arrowHead;
+        arrowHead << toPos << arrowP1 << arrowP2;
+        automatonScene->addPolygon(arrowHead, transitionPen, QBrush(TRANSITION_COLOR));
+
+        // Draw transition label
+        QString tokenName = getTokenName(transition.triggerToken);
+        QString labelText = tokenName;
+
+        QGraphicsTextItem* label = automatonScene->addText(labelText);
+        label->setDefaultTextColor(TEXT_COLOR);
+        label->setFont(QFont("Arial", 8, QFont::Bold));
+
+        QPointF labelPos = (fromPos + toPos) / 2;
+        label->setPos(labelPos.x() - 10, labelPos.y() - 15);
+    }
+
+    // Draw states
+    for (const auto& [state, pos] : statePositions) {
+        // Draw state circle
+        QGraphicsEllipseItem* stateCircle = automatonScene->addEllipse(-25, -25, 50, 50, statePen, STATE_BRUSH);
+        stateCircle->setPos(pos);
+
+        // Draw state name
+        QString stateName = getStateName(state);
+        QGraphicsTextItem* stateText = automatonScene->addText(stateName);
+        stateText->setDefaultTextColor(TEXT_COLOR);
+        stateText->setFont(QFont("Arial", 7, QFont::Bold));
+
+        QRectF textRect = stateText->boundingRect();
+        stateText->setPos(pos.x() - textRect.width()/2, pos.y() - textRect.height()/2);
+    }
+
+    // Draw execution path from REAL parser history
+    if (!stateHistory.empty()) {
+        for (size_t i = 1; i < stateHistory.size(); ++i) {
+            QPointF fromPos = statePositions[stateHistory[i-1].first];
+            QPointF toPos = statePositions[stateHistory[i].first];
+
+            QLineF pathLine(fromPos, toPos);
+            automatonScene->addLine(pathLine, historyPen);
         }
-    } else if (auto p = dynamic_cast<const AssignmentNode*>(node)) {
-        drawAutomatonFromAst(p->identifier.get(), pos + QPointF(-xOffset/2, yOffset), pos);
-        drawAutomatonFromAst(p->expression.get(), pos + QPointF(xOffset/2, yOffset), pos);
-    } else if (auto p = dynamic_cast<const BinaryOpNode*>(node)) {
-        drawAutomatonFromAst(p->left.get(), pos + QPointF(-xOffset, yOffset), pos);
-        drawAutomatonFromAst(p->right.get(), pos + QPointF(xOffset, yOffset), pos);
-    } else if (auto p = dynamic_cast<const UnaryOpNode*>(node)) {
-        drawAutomatonFromAst(p->right.get(), pos + QPointF(0, yOffset), pos);
-    } else if (auto p = dynamic_cast<const PrintNode*>(node)) {
-        drawAutomatonFromAst(p->expression.get(), pos + QPointF(0, yOffset), pos);
-    } else if (auto p = dynamic_cast<const ReturnNode*>(node)) {
-        if (p->expression) {
-            drawAutomatonFromAst(p->expression.get(), pos + QPointF(0, yOffset), pos);
+
+        // Highlight current state
+        if (!stateHistory.empty()) {
+            ParserState currentState = stateHistory.back().first;
+            QPointF currentPos = statePositions[currentState];
+
+            QGraphicsEllipseItem* currentHighlight = automatonScene->addEllipse(-30, -30, 60, 60, currentStatePen, QBrush(Qt::NoBrush));
+            currentHighlight->setPos(currentPos);
         }
-    } else if (auto p = dynamic_cast<const FunctionCallNode*>(node)) {
-        for (size_t i = 0; i < p->arguments.size(); ++i) {
-            drawAutomatonFromAst(p->arguments[i].get(), pos + QPointF(i * xOffset - (p->arguments.size()-1)*xOffset/2.0, yOffset), pos);
-        }
-    } else if (auto p = dynamic_cast<const IfNode*>(node)) {
-        drawAutomatonFromAst(p->condition.get(), pos + QPointF(-xOffset/2, yOffset), pos);
-        drawAutomatonFromAst(p->body.get(), pos + QPointF(xOffset/2, yOffset), pos);
-    } else if (auto p = dynamic_cast<const BlockNode*>(node)) {
-        for (size_t i = 0; i < p->statements.size(); ++i) {
-            drawAutomatonFromAst(p->statements[i].get(), pos + QPointF(0, yOffset * (i+1)), pos);
-        }
-    } else if (auto p = dynamic_cast<const FunctionDefNode*>(node)) {
-        drawAutomatonFromAst(p->body.get(), pos + QPointF(0, yOffset), pos);
-    } else if (auto p = dynamic_cast<const TryExceptNode*>(node)) {
-        drawAutomatonFromAst(p->try_body.get(), pos + QPointF(0, yOffset), pos);
+    }
+
+
+}
+
+QString MainWindow::getStateName(ParserState state) {
+    switch(state) {
+    case ParserState::START: return "START";
+    case ParserState::EXPECT_STATEMENT: return "EXPECT_STMT";
+    case ParserState::IN_FUNCTION_DEF: return "FUNC_DEF";
+    case ParserState::IN_FUNCTION_PARAMS: return "FUNC_PARAMS";
+    case ParserState::IN_FUNCTION_BODY: return "FUNC_BODY";
+    case ParserState::IN_IF_CONDITION: return "IF_COND";
+    case ParserState::IN_IF_BODY: return "IF_BODY";
+    case ParserState::IN_ASSIGNMENT: return "ASSIGN";
+    case ParserState::IN_EXPRESSION: return "EXPR";
+    case ParserState::IN_TERM: return "TERM";
+    case ParserState::IN_FACTOR: return "FACTOR";
+    case ParserState::IN_FUNCTION_CALL: return "FUNC_CALL";
+    case ParserState::IN_TRY_BLOCK: return "TRY_BLOCK";
+    case ParserState::IN_EXCEPT_BLOCK: return "EXCEPT_BLOCK";
+    case ParserState::EXPECT_OPERATOR: return "EXPECT_OP";
+    case ParserState::EXPECT_OPERAND: return "EXPECT_OPERAND";
+    case ParserState::END_STATEMENT: return "END_STMT";
+    default: return "UNKNOWN";
     }
 }
+
+QString MainWindow::getTokenName(TokenType token) {
+    switch(token) {
+    case TokenType::DEF: return "DEF";
+    case TokenType::IF: return "IF";
+    case TokenType::IDENTIFIER: return "ID";
+    case TokenType::EQUAL: return "=";
+    case TokenType::LPAREN: return "(";
+    case TokenType::RPAREN: return ")";
+    case TokenType::COLON: return ":";
+    case TokenType::RETURN: return "RETURN";
+    case TokenType::PRINT: return "PRINT";
+    case TokenType::TRY: return "TRY";
+    case TokenType::EXCEPT: return "EXCEPT";
+    case TokenType::OR: return "OR";
+    case TokenType::NOT: return "NOT";
+    case TokenType::NUMBER: return "NUM";
+    case TokenType::STRING: return "STR";
+    default: return "TOK";
+    }
+}
+
+
 
 void MainWindow::setupUI() {
     const QString COLOR_BACKGROUND_DARK = "#2c1d1d", COLOR_BACKGROUND_MID = "#4c2a2a", COLOR_BORDER = "#6c3a3a",

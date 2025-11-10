@@ -7,6 +7,7 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/lexer.cpp
 C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/mainwindow.h
  mmc:Q_OBJECT
  mdp:C:/Qt/6.9.3/mingw_64/include/QtCore/QPointF
+ mdp:C:/Qt/6.9.3/mingw_64/include/QtCore/QString
  mdp:C:/Qt/6.9.3/mingw_64/include/QtCore/q17memory.h
  mdp:C:/Qt/6.9.3/mingw_64/include/QtCore/q20functional.h
  mdp:C:/Qt/6.9.3/mingw_64/include/QtCore/q20iterator.h
@@ -382,8 +383,11 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/mainwindow.h
  mdp:C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/time.h
  mdp:C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/vadefs.h
  mdp:C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h
+ mdp:C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/ast.h
  mdp:C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_MinGW_64_bit-Debug/CompilerTheoryProject_autogen/moc_predefs.h
  mdp:C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/mainwindow.h
+ mdp:C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/parser.h
+ mdp:C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/token.h
 C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/parser.h
 C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/token.h
 C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/main.cpp

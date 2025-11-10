@@ -5,7 +5,16 @@
 
 using namespace std;
 
-Parser::Parser(const vector<Token>& tokens) : m_tokens(tokens) {}
+Parser::Parser(const vector<Token>& tokens) : m_tokens(tokens) {
+    m_state_history.push_back({m_current_state, Token{TokenType::END_OF_FILE, "START"}});
+}
+
+void Parser::changeState(ParserState newState, Token triggerToken, const QString& description) {
+    // Use the correct AutomatonTransition constructor
+    m_transitions.push_back(AutomatonTransition(m_current_state, newState, triggerToken.type));
+    m_current_state = newState;
+    m_state_history.push_back({m_current_state, triggerToken});
+}
 
 Token Parser::currentToken() {
     if (m_pos >= m_tokens.size()) return {TokenType::END_OF_FILE, ""};
@@ -25,52 +34,53 @@ void Parser::expect(TokenType type) {
     if (currentToken().type == type) {
         advance();
     } else {
-        advance(); // Skip unexpected tokens instead of throwing
+        advance(); // Skip on error
     }
 }
 
 unique_ptr<ProgramNode> Parser::parse() {
     auto programNode = make_unique<ProgramNode>();
+
     while (currentToken().type != TokenType::END_OF_FILE) {
-        // Skip INDENT/DEDENT at program level
-        if (currentToken().type == TokenType::INDENT || currentToken().type == TokenType::DEDENT) {
+        if (currentToken().type == TokenType::DEDENT ||
+            currentToken().type == TokenType::INDENT) {
             advance();
             continue;
         }
 
+        changeState(ParserState::EXPECT_STATEMENT, currentToken(), "Start parsing statement");
         auto stmt = parseStatement();
         if (stmt) {
             programNode->statements.push_back(std::move(stmt));
         }
+        changeState(ParserState::END_STATEMENT, currentToken(), "Finished statement");
     }
+
     return programNode;
 }
 
 unique_ptr<BlockNode> Parser::parseBlock() {
     auto block = make_unique<BlockNode>();
 
-    // Skip the INDENT token that starts the block
     if (currentToken().type == TokenType::INDENT) {
         advance();
     }
 
-    // Parse statements until we hit DEDENT or EOF
     while (currentToken().type != TokenType::DEDENT &&
            currentToken().type != TokenType::END_OF_FILE) {
 
-        // Skip any extra INDENT tokens
         if (currentToken().type == TokenType::INDENT) {
             advance();
             continue;
         }
 
+        changeState(ParserState::EXPECT_STATEMENT, currentToken(), "Start block statement");
         auto stmt = parseStatement();
         if (stmt) {
             block->statements.push_back(std::move(stmt));
         }
     }
 
-    // Skip the DEDENT token that ends the block
     if (currentToken().type == TokenType::DEDENT) {
         advance();
     }
@@ -79,8 +89,8 @@ unique_ptr<BlockNode> Parser::parseBlock() {
 }
 
 unique_ptr<ASTNode> Parser::parseStatement() {
-    // Skip INDENT/DEDENT at statement start
-    while (currentToken().type == TokenType::INDENT || currentToken().type == TokenType::DEDENT) {
+    while (currentToken().type == TokenType::INDENT ||
+           currentToken().type == TokenType::DEDENT) {
         advance();
     }
 
@@ -96,37 +106,45 @@ unique_ptr<ASTNode> Parser::parseStatement() {
     case TokenType::TRY:
         return parseTryExceptStatement();
     case TokenType::RETURN:
+        changeState(ParserState::IN_EXPRESSION, currentToken(), "Return statement");
         advance();
         return make_unique<ReturnNode>(parseExpression());
     case TokenType::PRINT:
+        changeState(ParserState::IN_EXPRESSION, currentToken(), "Print statement");
         advance();
         return make_unique<PrintNode>(parseExpression());
     case TokenType::IDENTIFIER:
         return parseAssignmentOrExpression();
     default:
+        changeState(ParserState::IN_EXPRESSION, currentToken(), "Expression statement");
         return parseExpression();
     }
 }
 
 unique_ptr<ASTNode> Parser::parseAssignmentOrExpression() {
     auto identifier = make_unique<IdentifierNode>(currentToken());
-    advance();
 
-    if (currentToken().type == TokenType::EQUAL) {
+    if (peekToken().type == TokenType::EQUAL) {
+        changeState(ParserState::IN_ASSIGNMENT, currentToken(), "Assignment detected");
+        advance();
         advance();
         auto expr = parseExpression();
         return make_unique<AssignmentNode>(std::move(identifier), std::move(expr));
     }
 
+    changeState(ParserState::IN_EXPRESSION, currentToken(), "Identifier expression");
+    advance();
     return identifier;
 }
 
 unique_ptr<ASTNode> Parser::parseTryExceptStatement() {
+    changeState(ParserState::IN_TRY_BLOCK, currentToken(), "Start try block");
     expect(TokenType::TRY);
     expect(TokenType::COLON);
     auto try_body = parseBlock();
 
     if (currentToken().type == TokenType::EXCEPT) {
+        changeState(ParserState::IN_EXCEPT_BLOCK, currentToken(), "Start except block");
         advance();
         expect(TokenType::COLON);
         parseBlock();
@@ -136,9 +154,12 @@ unique_ptr<ASTNode> Parser::parseTryExceptStatement() {
 }
 
 unique_ptr<ASTNode> Parser::parseFunctionDefinition() {
+    changeState(ParserState::IN_FUNCTION_DEF, currentToken(), "Start function definition");
     expect(TokenType::DEF);
     auto name = make_unique<IdentifierNode>(currentToken());
     expect(TokenType::IDENTIFIER);
+
+    changeState(ParserState::IN_FUNCTION_PARAMS, currentToken(), "Start function parameters");
     expect(TokenType::LPAREN);
 
     vector<unique_ptr<IdentifierNode>> params;
@@ -149,38 +170,37 @@ unique_ptr<ASTNode> Parser::parseFunctionDefinition() {
 
     expect(TokenType::RPAREN);
     expect(TokenType::COLON);
+
+    changeState(ParserState::IN_FUNCTION_BODY, currentToken(), "Start function body");
     auto body = parseBlock();
     return make_unique<FunctionDefNode>(std::move(name), std::move(params), std::move(body));
 }
 
 unique_ptr<ASTNode> Parser::parseIfStatement() {
+    changeState(ParserState::IN_IF_CONDITION, currentToken(), "Start if condition");
     expect(TokenType::IF);
     auto condition = parseExpression();
     expect(TokenType::COLON);
+
+    changeState(ParserState::IN_IF_BODY, currentToken(), "Start if body");
     auto body = parseBlock();
     return make_unique<IfNode>(std::move(condition), std::move(body));
 }
 
 unique_ptr<ASTNode> Parser::parseExpression() {
-    // Skip INDENT/DEDENT in expressions
-    while (currentToken().type == TokenType::INDENT || currentToken().type == TokenType::DEDENT) {
-        advance();
-    }
-
-    if (currentToken().type == TokenType::END_OF_FILE) {
-        return make_unique<NoneNode>();
-    }
-
+    changeState(ParserState::IN_EXPRESSION, currentToken(), "Start expression");
     return parseLogicalOr();
 }
 
 unique_ptr<ASTNode> Parser::parseLogicalOr() {
     auto node = parseComparison();
     while (currentToken().type == TokenType::OR) {
+        changeState(ParserState::EXPECT_OPERAND, currentToken(), "OR operator");
         Token op = currentToken();
         advance();
         auto right = parseComparison();
         node = make_unique<BinaryOpNode>(std::move(node), op, std::move(right));
+        changeState(ParserState::IN_EXPRESSION, currentToken(), "Continue expression");
     }
     return node;
 }
@@ -190,38 +210,47 @@ unique_ptr<ASTNode> Parser::parseComparison() {
     while (currentToken().type == TokenType::GREATER ||
            currentToken().type == TokenType::LESS_EQUAL ||
            currentToken().type == TokenType::DOUBLE_EQUAL) {
+        changeState(ParserState::EXPECT_OPERAND, currentToken(), "Comparison operator");
         Token op = currentToken();
         advance();
         auto right = parseTerm();
         node = make_unique<BinaryOpNode>(std::move(node), op, std::move(right));
+        changeState(ParserState::IN_EXPRESSION, currentToken(), "Continue expression");
     }
     return node;
 }
 
 unique_ptr<ASTNode> Parser::parseTerm() {
+    changeState(ParserState::IN_TERM, currentToken(), "Start term");
     auto node = parseFactor();
     while (currentToken().type == TokenType::PLUS || currentToken().type == TokenType::MINUS) {
+        changeState(ParserState::EXPECT_OPERAND, currentToken(), "Add/sub operator");
         Token op = currentToken();
         advance();
         auto right = parseFactor();
         node = make_unique<BinaryOpNode>(std::move(node), op, std::move(right));
+        changeState(ParserState::IN_TERM, currentToken(), "Continue term");
     }
     return node;
 }
 
 unique_ptr<ASTNode> Parser::parseFactor() {
+    changeState(ParserState::IN_FACTOR, currentToken(), "Start factor");
     auto node = parseUnary();
     while (currentToken().type == TokenType::STAR || currentToken().type == TokenType::SLASH) {
+        changeState(ParserState::EXPECT_OPERAND, currentToken(), "Mul/div operator");
         Token op = currentToken();
         advance();
         auto right = parseUnary();
         node = make_unique<BinaryOpNode>(std::move(node), op, std::move(right));
+        changeState(ParserState::IN_FACTOR, currentToken(), "Continue factor");
     }
     return node;
 }
 
 unique_ptr<ASTNode> Parser::parseUnary() {
     if (currentToken().type == TokenType::NOT) {
+        changeState(ParserState::EXPECT_OPERAND, currentToken(), "NOT operator");
         Token op = currentToken();
         advance();
         auto right = parseUnary();
@@ -231,14 +260,7 @@ unique_ptr<ASTNode> Parser::parseUnary() {
 }
 
 unique_ptr<ASTNode> Parser::parsePrimary() {
-    // Skip INDENT/DEDENT in primary expressions
-    while (currentToken().type == TokenType::INDENT || currentToken().type == TokenType::DEDENT) {
-        advance();
-    }
-
-    if (currentToken().type == TokenType::END_OF_FILE) {
-        return make_unique<NoneNode>();
-    }
+    changeState(ParserState::EXPECT_OPERAND, currentToken(), "Expect primary operand");
 
     Token token = currentToken();
 
@@ -263,6 +285,7 @@ unique_ptr<ASTNode> Parser::parsePrimary() {
         advance();
 
         if (currentToken().type == TokenType::LPAREN) {
+            changeState(ParserState::IN_FUNCTION_CALL, currentToken(), "Function call");
             advance();
             vector<unique_ptr<ASTNode>> args;
             if (currentToken().type != TokenType::RPAREN) {
@@ -295,3 +318,4 @@ unique_ptr<ASTNode> Parser::parsePrimary() {
         return parsePrimary();
     }
 }
+
