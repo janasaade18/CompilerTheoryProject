@@ -5,9 +5,8 @@
 #include <QGraphicsScene>
 #include <QPointF> // Required for QPointF in function declaration
 
-// Forward declare ASTNode to avoid circular dependencies if needed,
-// but including the header is better here.
-#include "ast.h"
+// Forward declaration of the base ASTNode class
+class ASTNode;
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -22,19 +21,17 @@ public:
     ~MainWindow();
 
 private slots:
+    // This is the only slot we need now
     void onAnalyzeClicked();
-    void onOpenFileClicked();
-    void onSaveFileClicked();
 
 private:
     Ui::MainWindow *ui;
     QGraphicsScene *automatonScene;
     QGraphicsScene *treeScene;
 
+    // UI and drawing helper functions
     void setupUI();
     void drawSampleAutomaton();
-
-    // Replaced the old sample function with the one that draws a real AST
     void drawAst(const ASTNode* node, QPointF pos, QPointF parentPos = QPointF());
 };
 
