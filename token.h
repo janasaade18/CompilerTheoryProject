@@ -3,33 +3,20 @@
 
 #include <QString>
 
-// Defines all the possible types of tokens in our language
 enum class TokenType {
-    // Literals
-    IDENTIFIER,     // variable names like 'x', 'my_var'
-    NUMBER,         // 123, 45.6
-
-    // Operators
-    EQUAL,          // =
-    PLUS,           // +
-    MINUS,          // -
-    STAR,           // *
-    SLASH,          // /
-
-    // Punctuation
-    SEMICOLON,      // ;
-    LPAREN,         // (
-    RPAREN,         // )
-
-    // Control
-    ILLEGAL,        // An unknown character
-    END_OF_FILE     // The end of the input
+    ILLEGAL, END_OF_FILE, IDENTIFIER, NUMBER, STRING,
+    DEF, IF, RETURN, PRINT,
+    NOT, OR, NONE, TRUE, FALSE,
+    EQUAL, DOUBLE_EQUAL, PLUS, MINUS, STAR, SLASH, LESS_EQUAL, GREATER,
+    LPAREN, RPAREN, LBRACE, RBRACE, COLON, COMMA, SEMICOLON, DOT,
+    INDENT, DEDENT,
+    TRY, EXCEPT
 };
 
-// A structure to hold a token's type and its actual string value
 struct Token {
     TokenType type;
     QString value;
+    int line = 0;
 };
 
 #endif // TOKEN_H
