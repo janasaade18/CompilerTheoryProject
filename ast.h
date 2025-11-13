@@ -44,7 +44,7 @@ struct NoneNode : ASTNode {
 struct UnaryOpNode : ASTNode {
     Token op;
     unique_ptr<ASTNode> right;
-    UnaryOpNode(Token o, unique_ptr<ASTNode> r) : op(std::move(o)), right(std::move(r)) {}
+    UnaryOpNode(Token o, unique_ptr<ASTNode> r) : op(std::  move(o)), right(std::move(r)) {}
     QString getNodeName() const override { return "Op: " + op.value; }
 };
 
@@ -90,8 +90,16 @@ struct BlockNode : ASTNode {
 struct IfNode : ASTNode {
     unique_ptr<ASTNode> condition;
     unique_ptr<BlockNode> body;
-    IfNode(unique_ptr<ASTNode> cond, unique_ptr<BlockNode> b) : condition(std::move(cond)), body(std::move(b)) {}
+    unique_ptr<ASTNode> else_branch;
+    IfNode(unique_ptr<ASTNode> cond, unique_ptr<BlockNode> b) : condition(std::move(cond)), body(std::move(b)), else_branch(nullptr) {}
     QString getNodeName() const override { return "If"; }
+};
+
+struct WhileNode : ASTNode {
+    unique_ptr<ASTNode> condition;
+    unique_ptr<BlockNode> body;
+    WhileNode(unique_ptr<ASTNode> cond, unique_ptr<BlockNode> b) : condition(std::move(cond)), body(std::move(b)) {}
+    QString getNodeName() const override { return "While"; }
 };
 
 struct FunctionDefNode : ASTNode {

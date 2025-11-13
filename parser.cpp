@@ -10,7 +10,6 @@ Parser::Parser(const vector<Token>& tokens) : m_tokens(tokens) {
 }
 
 void Parser::changeState(ParserState newState, Token triggerToken, const QString& description) {
-    // Use the correct AutomatonTransition constructor
     m_transitions.push_back(AutomatonTransition(m_current_state, newState, triggerToken.type));
     m_current_state = newState;
     m_state_history.push_back({m_current_state, triggerToken});
@@ -103,6 +102,8 @@ unique_ptr<ASTNode> Parser::parseStatement() {
         return parseFunctionDefinition();
     case TokenType::IF:
         return parseIfStatement();
+    case TokenType::WHILE:
+        return parseWhileStatement();
     case TokenType::TRY:
         return parseTryExceptStatement();
     case TokenType::RETURN:
@@ -178,13 +179,41 @@ unique_ptr<ASTNode> Parser::parseFunctionDefinition() {
 
 unique_ptr<ASTNode> Parser::parseIfStatement() {
     changeState(ParserState::IN_IF_CONDITION, currentToken(), "Start if condition");
-    expect(TokenType::IF);
+    // 'elif' is just a keyword variation of 'if', so we consume either.
+    if (currentToken().type == TokenType::ELIF) {
+        expect(TokenType::ELIF);
+    } else {
+        expect(TokenType::IF);
+    }
     auto condition = parseExpression();
     expect(TokenType::COLON);
 
     changeState(ParserState::IN_IF_BODY, currentToken(), "Start if body");
     auto body = parseBlock();
-    return make_unique<IfNode>(std::move(condition), std::move(body));
+
+    auto ifNode = make_unique<IfNode>(std::move(condition), std::move(body));
+
+    if (currentToken().type == TokenType::ELIF) {
+        ifNode->else_branch = parseIfStatement();
+    } else if (currentToken().type == TokenType::ELSE) {
+        advance(); // consume 'else'
+        expect(TokenType::COLON);
+        changeState(ParserState::IN_IF_BODY, currentToken(), "Start else body");
+        ifNode->else_branch = parseBlock();
+    }
+
+    return ifNode;
+}
+
+unique_ptr<ASTNode> Parser::parseWhileStatement() {
+    changeState(ParserState::IN_IF_CONDITION, currentToken(), "Start while loop");
+    expect(TokenType::WHILE);
+    auto condition = parseExpression();
+    expect(TokenType::COLON);
+
+    changeState(ParserState::IN_IF_BODY, currentToken(), "Start while body");
+    auto body = parseBlock();
+    return make_unique<WhileNode>(std::move(condition), std::move(body));
 }
 
 unique_ptr<ASTNode> Parser::parseExpression() {
@@ -318,4 +347,3 @@ unique_ptr<ASTNode> Parser::parsePrimary() {
         return parsePrimary();
     }
 }
-

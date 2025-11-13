@@ -1,10 +1,11 @@
 #include "translator.h"
 #include <stdexcept>
 
+using namespace std;
+
 QString Translator::translate(const ProgramNode* program) {
     QString result;
 
-    // Add necessary includes
     result += "#include <iostream>\n";
     result += "#include <string>\n";
     result += "#include <map>\n";
@@ -12,7 +13,6 @@ QString Translator::translate(const ProgramNode* program) {
     result += "#include <stdexcept>\n\n";
     result += "using namespace std;\n\n";
 
-    // Translate all statements (functions first, then main logic)
     QString functions;
     QString mainBody;
 
@@ -25,8 +25,6 @@ QString Translator::translate(const ProgramNode* program) {
     }
 
     result += functions;
-
-    // Add main function
     result += "int main() {\n";
 
     if (!mainBody.isEmpty()) {
@@ -42,7 +40,6 @@ QString Translator::translate(const ProgramNode* program) {
 QString Translator::translateNode(const ASTNode* node) {
     if (!node) return "";
 
-    // Assignment
     if (auto p = dynamic_cast<const AssignmentNode*>(node)) {
         QString varName = p->identifier->token.value;
         QString expressionStr = translateNode(p->expression.get());
@@ -55,63 +52,36 @@ QString Translator::translateNode(const ASTNode* node) {
         }
     }
 
-    // Binary Operation
     if (auto p = dynamic_cast<const BinaryOpNode*>(node)) {
         QString left = translateNode(p->left.get());
         QString right = translateNode(p->right.get());
         QString op = p->op.value;
 
-        // Handle Python's "or" operator
-        if (op == "or") {
-            op = "||";
-        }
-        // Handle Python's "==" operator
-        if (op == "==") {
-            op = "==";
-        }
+        if (op == "or") op = "||";
+        if (op == "==") op = "==";
 
         return QString("(%1 %2 %3)").arg(left, op, right);
     }
 
-    // Unary Operation
     if (auto p = dynamic_cast<const UnaryOpNode*>(node)) {
         QString right = translateNode(p->right.get());
         QString op = p->op.value;
 
-        if (op == "not") {
-            op = "!";
-        }
+        if (op == "not") op = "!";
 
         return QString("(%1%2)").arg(op, right);
     }
 
-    // Identifier
-    if (auto p = dynamic_cast<const IdentifierNode*>(node)) {
-        return p->token.value;
-    }
+    if (auto p = dynamic_cast<const IdentifierNode*>(node)) return p->token.value;
+    if (auto p = dynamic_cast<const NumberNode*>(node)) return p->token.value;
+    if (auto p = dynamic_cast<const StringNode*>(node)) return QString("\"%1\"").arg(p->token.value);
+    if (dynamic_cast<const NoneNode*>(node)) return "nullptr";
 
-    // Number
-    if (auto p = dynamic_cast<const NumberNode*>(node)) {
-        return p->token.value;
-    }
-
-    // String
-    if (auto p = dynamic_cast<const StringNode*>(node)) {
-        return QString("\"%1\"").arg(p->token.value);
-    }
-
-    // None
-    if (dynamic_cast<const NoneNode*>(node)) {
-        return "nullptr";
-    }
-
-    // Print Statement
     if (auto p = dynamic_cast<const PrintNode*>(node)) {
         QString expr = translateNode(p->expression.get());
         return QString("cout << %1 << endl;").arg(expr);
     }
 
-    // Return Statement
     if (auto p = dynamic_cast<const ReturnNode*>(node)) {
         if (p->expression) {
             QString expr = translateNode(p->expression.get());
@@ -120,31 +90,14 @@ QString Translator::translateNode(const ASTNode* node) {
         return "return;";
     }
 
-    // Function Call
     if (auto p = dynamic_cast<const FunctionCallNode*>(node)) {
         QString funcName = p->name->token.value;
 
-        // Handle built-in Python functions
-        if (funcName == "isinstance") {
-            return "true"; // Simplified - type checking
-        }
-        if (funcName == "int") {
-            if (!p->arguments.empty()) {
-                return QString("stoi(%1)").arg(translateNode(p->arguments[0].get()));
-            }
-            return "0";
-        }
-        if (funcName == "float") {
-            if (!p->arguments.empty()) {
-                return QString("stof(%1)").arg(translateNode(p->arguments[0].get()));
-            }
-            return "0.0";
-        }
-        if (funcName == "input") {
-            return "\"user_input\""; // Simplified
-        }
+        if (funcName == "isinstance") return "true";
+        if (funcName == "int") return p->arguments.empty() ? "0" : QString("stoi(%1)").arg(translateNode(p->arguments[0].get()));
+        if (funcName == "float") return p->arguments.empty() ? "0.0" : QString("stof(%1)").arg(translateNode(p->arguments[0].get()));
+        if (funcName == "input") return "\"user_input\"";
 
-        // Regular function call
         QString args;
         for (size_t i = 0; i < p->arguments.size(); ++i) {
             if (i > 0) args += ", ";
@@ -153,19 +106,33 @@ QString Translator::translateNode(const ASTNode* node) {
         return QString("%1(%2)").arg(funcName, args);
     }
 
-    // If Statement
     if (auto p = dynamic_cast<const IfNode*>(node)) {
         QString condition = translateNode(p->condition.get());
         QString body = translateBlock(p->body.get(), 1);
+        QString result = QString("if %1 {\n%2    }").arg(condition, body);
 
-        return QString("if %1 {\n%2    }").arg(condition, body);
+        if (p->else_branch) {
+            QString else_code;
+            if (auto else_if_node = dynamic_cast<const IfNode*>(p->else_branch.get())) {
+                else_code = translateNode(else_if_node);
+                result += " else " + else_code;
+            } else if (auto else_block_node = dynamic_cast<const BlockNode*>(p->else_branch.get())) {
+                else_code = translateBlock(else_block_node, 1);
+                result += QString(" else {\n%1    }").arg(else_code);
+            }
+        }
+        return result;
     }
 
-    // Function Definition
+    if (auto p = dynamic_cast<const WhileNode*>(node)) {
+        QString condition = translateNode(p->condition.get());
+        QString body = translateBlock(p->body.get(), 1);
+        return QString("while %1 {\n%2    }").arg(condition, body);
+    }
+
     if (auto p = dynamic_cast<const FunctionDefNode*>(node)) {
         QString funcName = p->name->token.value;
 
-        // Parameters
         QString params;
         for (size_t i = 0; i < p->parameters.size(); ++i) {
             if (i > 0) params += ", ";
@@ -174,20 +141,15 @@ QString Translator::translateNode(const ASTNode* node) {
             declaredVariables.insert(paramName);
         }
 
-        // Body
         QString body = translateBlock(p->body.get(), 1);
-
         return QString("auto %1(%2) {\n%3}\n").arg(funcName, params, body);
     }
 
-    // Try-Except Block
     if (auto p = dynamic_cast<const TryExceptNode*>(node)) {
         QString tryBody = translateBlock(p->try_body.get(), 1);
-
         return QString("try {\n%1    } catch (...) {\n        // Exception handling\n    }").arg(tryBody);
     }
 
-    // Block
     if (auto p = dynamic_cast<const BlockNode*>(node)) {
         return translateBlock(p, 0);
     }
@@ -201,8 +163,6 @@ QString Translator::translateBlock(const BlockNode* block, int indentLevel) {
 
     for (const auto& stmt : block->statements) {
         QString translated = translateNode(stmt.get());
-
-        // Handle multi-line statements (like if, function def)
         if (translated.contains('\n')) {
             QStringList lines = translated.split('\n');
             for (const QString& line : lines) {

@@ -9,7 +9,6 @@
 
 using namespace std;
 
-// AUTOMATON STATES
 enum class ParserState {
     START,
     EXPECT_STATEMENT,
@@ -72,6 +71,7 @@ private:
     unique_ptr<ASTNode> parsePrimary();
     unique_ptr<ASTNode> parseFunctionDefinition();
     unique_ptr<ASTNode> parseIfStatement();
+    unique_ptr<ASTNode> parseWhileStatement();
     unique_ptr<ASTNode> parseTryExceptStatement();
     unique_ptr<ASTNode> parseAssignmentOrExpression();
 };

@@ -18,7 +18,6 @@ vector<Token> Lexer::tokenize() {
             at_start_of_line = false;
             int current_indent = getCurrentIndent();
 
-            // Handle empty lines or lines with only comments
             if (m_pos >= m_source.length() || currentChar() == '\n') {
                 if (currentChar() == '\n') {
                     m_line++;
@@ -37,7 +36,6 @@ vector<Token> Lexer::tokenize() {
                     tokens.push_back({TokenType::DEDENT, "DEDENT", m_line});
                 }
 
-                // Check if we found a matching indentation level
                 if (current_indent != m_indent_stack.top()) {
                     throw runtime_error("Indentation error at line " + to_string(m_line));
                 }
@@ -244,6 +242,9 @@ Token Lexer::identifier() {
 
     if (result == "def") return {TokenType::DEF, result, m_line};
     if (result == "if") return {TokenType::IF, result, m_line};
+    if (result == "while") return {TokenType::WHILE, result, m_line};
+    if (result == "else") return {TokenType::ELSE, result, m_line};
+    if (result == "elif") return {TokenType::ELIF, result, m_line};
     if (result == "return") return {TokenType::RETURN, result, m_line};
     if (result == "print") return {TokenType::PRINT, result, m_line};
     if (result == "not") return {TokenType::NOT, result, m_line};
