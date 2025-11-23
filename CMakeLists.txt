@@ -31,6 +31,12 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(CompilerTheoryProject
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        types.h
+        symbol_table.h
+        symbol_table.cpp
+        semantic_analyzer.h
+        semantic_analyzer.cpp
+
 
     )
 # Define target properties for Android with Qt 6 as:

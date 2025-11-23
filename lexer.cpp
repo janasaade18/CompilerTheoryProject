@@ -199,12 +199,29 @@ void Lexer::skipWhitespace() {
     }
 }
 
+
 Token Lexer::number() {
     QString result;
-    while (m_pos < m_source.length() && currentChar().isDigit()) {
-        result += currentChar();
-        advance();
+    bool dot_seen = false; // Track if we've seen a decimal point
+
+    while (m_pos < m_source.length()) {
+        QChar c = currentChar();
+
+        if (c.isDigit()) {
+            result += c;
+            advance();
+        } else if (c == '.') {
+            if (dot_seen) break; // We already saw a dot, so 1.2.3 -> stop at second dot
+            dot_seen = true;
+            result += c;
+            advance();
+        } else {
+            break;
+        }
     }
+
+    // Note: We still return TokenType::NUMBER.
+    // We will distinguish Int vs Float in the Semantic Analyzer based on the presence of '.'
     return {TokenType::NUMBER, result, m_line};
 }
 
@@ -254,6 +271,8 @@ Token Lexer::identifier() {
     if (result == "False") return {TokenType::FALSE, result, m_line};
     if (result == "try") return {TokenType::TRY, result, m_line};
     if (result == "except") return {TokenType::EXCEPT, result, m_line};
+    if (result == "for")   return {TokenType::FOR, result, m_line};
+    if (result == "in")    return {TokenType::IN, result, m_line};
 
     return {TokenType::IDENTIFIER, result, m_line};
 }

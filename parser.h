@@ -42,11 +42,12 @@ class Parser {
 public:
     Parser(const vector<Token>& tokens);
     unique_ptr<ProgramNode> parse();
+
+    // For Visualization
     vector<pair<ParserState, Token>> getStateHistory() const { return m_state_history; }
     vector<AutomatonTransition> getTransitions() const { return m_transitions; }
 
 private:
-
     vector<Token> m_tokens;
     int m_pos = 0;
     ParserState m_current_state = ParserState::START;
@@ -56,7 +57,7 @@ private:
     void changeState(ParserState newState, Token triggerToken, const QString& description);
 
     Token currentToken();
-    Token peekToken();
+    Token peekToken(int offset = 1);
     void advance();
     void expect(TokenType type);
 
@@ -69,9 +70,11 @@ private:
     unique_ptr<ASTNode> parseFactor();
     unique_ptr<ASTNode> parseUnary();
     unique_ptr<ASTNode> parsePrimary();
+
     unique_ptr<ASTNode> parseFunctionDefinition();
     unique_ptr<ASTNode> parseIfStatement();
     unique_ptr<ASTNode> parseWhileStatement();
+    unique_ptr<ASTNode> parseForStatement();
     unique_ptr<ASTNode> parseTryExceptStatement();
     unique_ptr<ASTNode> parseAssignmentOrExpression();
 };

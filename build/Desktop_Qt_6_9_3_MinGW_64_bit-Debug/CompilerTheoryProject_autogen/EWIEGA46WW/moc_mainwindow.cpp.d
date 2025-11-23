@@ -1,6 +1,7 @@
 C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_MinGW_64_bit-Debug/CompilerTheoryProject_autogen/EWIEGA46WW/moc_mainwindow.cpp: C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/mainwindow.h \
   C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_MinGW_64_bit-Debug/CompilerTheoryProject_autogen/moc_predefs.h \
-  C:/Qt/6.9.3/mingw_64/include/QtCore/QPointF \
+  C:/Qt/6.9.3/mingw_64/include/QtCore/QMap \
+  C:/Qt/6.9.3/mingw_64/include/QtCore/QProcess \
   C:/Qt/6.9.3/mingw_64/include/QtCore/QString \
   C:/Qt/6.9.3/mingw_64/include/QtCore/q17memory.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/q20functional.h \
@@ -49,6 +50,7 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_Min
   C:/Qt/6.9.3/mingw_64/include/QtCore/qglobalstatic.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qhash.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qhashfunctions.h \
+  C:/Qt/6.9.3/mingw_64/include/QtCore/qiodevice.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qiodevicebase.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qiterable.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qiterator.h \
@@ -72,6 +74,7 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_Min
   C:/Qt/6.9.3/mingw_64/include/QtCore/qoverload.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qpair.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qpoint.h \
+  C:/Qt/6.9.3/mingw_64/include/QtCore/qprocess.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qprocessordetection.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qrect.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qrefcount.h \
@@ -121,6 +124,7 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_Min
   C:/Qt/6.9.3/mingw_64/include/QtCore/qtversionchecks.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qtypeinfo.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qtypes.h \
+  C:/Qt/6.9.3/mingw_64/include/QtCore/qurl.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qutf8stringview.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qvariant.h \
   C:/Qt/6.9.3/mingw_64/include/QtCore/qvarlengtharray.h \
@@ -148,6 +152,10 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_Min
   C:/Qt/6.9.3/mingw_64/include/QtGui/qregion.h \
   C:/Qt/6.9.3/mingw_64/include/QtGui/qrgb.h \
   C:/Qt/6.9.3/mingw_64/include/QtGui/qrgba64.h \
+  C:/Qt/6.9.3/mingw_64/include/QtGui/qtextcursor.h \
+  C:/Qt/6.9.3/mingw_64/include/QtGui/qtextdocument.h \
+  C:/Qt/6.9.3/mingw_64/include/QtGui/qtextformat.h \
+  C:/Qt/6.9.3/mingw_64/include/QtGui/qtextoption.h \
   C:/Qt/6.9.3/mingw_64/include/QtGui/qtgui-config.h \
   C:/Qt/6.9.3/mingw_64/include/QtGui/qtguiexports.h \
   C:/Qt/6.9.3/mingw_64/include/QtGui/qtguiglobal.h \
@@ -156,10 +164,14 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_Min
   C:/Qt/6.9.3/mingw_64/include/QtGui/qwindowdefs_win.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/QGraphicsScene \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/QMainWindow \
+  C:/Qt/6.9.3/mingw_64/include/QtWidgets/QTextEdit \
+  C:/Qt/6.9.3/mingw_64/include/QtWidgets/qabstractscrollarea.h \
+  C:/Qt/6.9.3/mingw_64/include/QtWidgets/qframe.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/qgraphicsscene.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/qmainwindow.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/qsizepolicy.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/qtabwidget.h \
+  C:/Qt/6.9.3/mingw_64/include/QtWidgets/qtextedit.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/qtwidgets-config.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/qtwidgetsexports.h \
   C:/Qt/6.9.3/mingw_64/include/QtWidgets/qtwidgetsglobal.h \
@@ -379,4 +391,5 @@ C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/build/Desktop_Qt_6_9_3_Min
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h \
   C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/ast.h \
   C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/parser.h \
-  C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/token.h
+  C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/token.h \
+  C:/Users/serge/OneDrive/Desktop/CompilerTheoryProject/types.h
