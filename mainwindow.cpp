@@ -25,6 +25,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QScrollBar>
+#include <QRegularExpression>
 #include <map>
 #include <set>
 #include <cmath>
@@ -74,48 +75,95 @@ protected:
 QString getDesignDocumentText() {
     return R"(
 ==============================================================================
-SEMANTIC EQUATIONS (ATTRIBUTE GRAMMAR) - BLUEPRINT
+FULL ATTRIBUTE GRAMMAR SPECIFICATION
 ==============================================================================
-The formal logic enforced by the Semantic Analyzer (Type Inference & Scoping).
+This document defines the static semantics enforced by the compiler.
+S = Statement, E = Expression, T = Type
 
-[ 1. Type Promotion Rules (Binary Operations) ]
-Production: E -> E1 + E2
-    E.type = {
-        FLOAT    if (E1.type == FLOAT || E2.type == FLOAT)
-        INTEGER  if (E1.type == INTEGER && E2.type == INTEGER)
-        STRING   if (E1.type == STRING && E2.type == STRING)
-        ERROR    otherwise
-    }
+[ 1. Literals & Base Types ]
+   E -> integer_literal    => E.type = INTEGER
+   E -> float_literal      => E.type = FLOAT
+   E -> string_literal     => E.type = STRING
+   E -> 'True' | 'False'   => E.type = BOOLEAN
+   E -> 'None'             => E.type = NONE
 
-[ 2. For Loop Semantics ]
-Production: S -> for i in range(start, stop, step) : B
-    check(start.type == INTEGER)
-    check(stop.type == INTEGER)
-    check(step.type == INTEGER)
+[ 2. Variable Declarations & Assignments ]
+   Production: ID = E
+   Action:
+       1. lookup(ID) in SymbolTable
+       2. If exists:
+            if (ID.type == FLOAT && E.type == INTEGER): ALLOW (Promotion)
+            else if (ID.type != E.type): ERROR("Type Mismatch")
+       3. Else:
+            SymbolTable.define(ID, E.type)
+       4. ID.type = E.type
 
-    new_scope = create_scope(current_scope)
-    new_scope.define(i, INTEGER)
-    B.env = new_scope
+[ 3. Binary Operations (Arithmetic) ]
+   Production: E -> E1 op E2   where op in { +, -, *, / }
+   Rules:
+       1. If (E1.type == STRING || E2.type == STRING):
+            if (op == +): E.type = STRING  (Concatenation)
+            else: ERROR("Cannot perform -, *, / on Strings")
+       2. Else if (E1.type == FLOAT || E2.type == FLOAT):
+            E.type = FLOAT
+       3. Else:
+            E.type = INTEGER
 
-[ 3. Variable Declaration & Assignment ]
-Production: S -> id = E
-    S.env = update(current_scope, id.name, E.type)
-    id.type = E.type
+[ 4. Binary Operations (Logic & Comparison) ]
+   Production: E -> E1 op E2
+   Ops: { >, <, >=, <=, ==, != } OR { and, or }
+   Rule:
+       E.type = BOOLEAN
 
-[ 4. Function Scope & Return Consistency ]
-Production: Def -> def ID (...) : B
-    scope = create_scope(global)
-    define_params(scope, Params)
+[ 5. Unary Operations ]
+   Production: E -> op E1
+   Rules:
+       1. If op == 'not': E.type = BOOLEAN
+       2. If op == '-':   E.type = E1.type
 
-    func_type = lookup(ID.name)
-    forall (return_stmt in B):
-        check(return_stmt.type == func_type.returnType)
+[ 6. For Loop Semantics ]
+   Case A: Range Loop
+       S -> for ID in range(start, stop, step)
+       Check: start.type == INTEGER
+       Check: stop.type == INTEGER
+       Action:
+           Scope.enter()
+           SymbolTable.define(ID, INTEGER)
+           Visit(Body)
+           Scope.exit()
 
-[ 5. Boolean Logic ]
-Production: E -> E1 or E2
-    check(E1.type == BOOLEAN or INTEGER)
-    check(E2.type == BOOLEAN or INTEGER)
-    E.type = BOOLEAN
+   Case B: Generic Loop
+       S -> for ID in Iterable
+       Action:
+           If (Iterable.type == STRING): SymbolTable.define(ID, STRING)
+           Else: SymbolTable.define(ID, UNDEFINED)
+
+[ 7. Function Definitions ]
+   Production: def ID(Params...): Block
+   Action:
+       1. Check if ID defined globally. If yes -> ERROR.
+       2. SymbolTable.define(ID, FUNCTION)
+       3. Scope.enter()
+       4. For p in Params: SymbolTable.define(p, INTEGER) (Default)
+       5. Visit(Block)
+       6. Scope.exit()
+
+[ 8. Return Statements ]
+   Production: return E
+   Action:
+       1. Check if inside Function. If no -> ERROR.
+       2. current_func.return_type = E.type
+       3. If (current_func has previous returns):
+            Check (previous_return_type == E.type)
+            If mismatch -> ERROR("Inconsistent return types")
+
+[ 9. Function Calls ]
+   Production: ID(Args...)
+   Action:
+       1. func = lookup(ID)
+       2. If !func -> ERROR("Function not defined")
+       3. Visit all Args (to resolve their types)
+       4. E.type = func.return_type
 )";
 }
 
@@ -131,6 +179,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(runnerProcess, &QProcess::finished, this, &MainWindow::onExecutionFinished);
 
     setupUI();
+
+    // Attach Highlighter to the Editor
+    highlighter = new ErrorHighlighter(sourceCodeEdit->document());
+
+    // Setup Live Check Timer (Debouncing)
+    liveCheckTimer = new QTimer(this);
+    liveCheckTimer->setSingleShot(true);
+    connect(liveCheckTimer, &QTimer::timeout, this, &MainWindow::liveCheck);
+
+    // Trigger check when text changes
+    connect(sourceCodeEdit, &CodeEditor::textChanged, [this]() {
+        // Wait 600ms after user stops typing to avoid lag
+        liveCheckTimer->start(600);
+    });
 
     // Default Code Example
     const QString pythonCode = R"(def calculate_sum(limit):
@@ -153,6 +215,54 @@ else:
 
 MainWindow::~MainWindow() {
     delete ui;
+}
+
+void MainWindow::liveCheck() {
+    QString sourceCode = sourceCodeEdit->toPlainText();
+    if (sourceCode.trimmed().isEmpty()) return;
+
+    QLabel* statusLabel = findChild<QLabel*>("statusLabel");
+
+    try {
+        // 1. Lexer
+        Lexer lexer(sourceCode);
+        vector<Token> tokens = lexer.tokenize();
+
+        // 2. Parser
+        Parser parser(tokens);
+        unique_ptr<ProgramNode> astRoot = parser.parse();
+
+        if (astRoot) {
+            // 3. Semantic Analysis
+            SemanticAnalyzer analyzer;
+            analyzer.analyze(astRoot.get());
+
+            // If we get here, no errors found
+            highlighter->clearError();
+            sourceCodeEdit->clearError();
+            statusLabel->setStyleSheet("background-color: #276749; color: white; padding: 8px;");
+            statusLabel->setText("Status: No errors detected.");
+        }
+    } catch (const exception& e) {
+        // Parse error message for line number
+        QString errorMsg = QString(e.what());
+        int line = -1;
+
+        // Attempt to find "line X" in the error string
+        QRegularExpression re("line\\s+(\\d+)");
+        QRegularExpressionMatch match = re.match(errorMsg);
+        if (match.hasMatch()) {
+            line = match.captured(1).toInt();
+        }
+
+        if (line != -1) {
+            highlighter->setErrorLine(line);
+            sourceCodeEdit->setError(line, errorMsg);
+        }
+
+        statusLabel->setStyleSheet("background-color: #9b2c2c; color: white; padding: 8px; font-weight: bold;");
+        statusLabel->setText(QString("Live Error: ") + errorMsg);
+    }
 }
 
 void MainWindow::onAnalyzeClicked() {
@@ -198,6 +308,7 @@ void MainWindow::onAnalyzeClicked() {
             targetCodeEdit->setPlainText(cppCode);
 
             statusLabel->setText("Success: Code analyzed and translated successfully.");
+            highlighter->clearError(); // Clear highlights if button clicked and succeeds
 
             // 6. Profiler Execution
             // Save generated code to temp file
@@ -220,9 +331,11 @@ void MainWindow::onAnalyzeClicked() {
     } catch (const SemanticError& e) {
         QMessageBox::critical(this, "Semantic Error", e.what());
         statusLabel->setText("Error: Semantic analysis failed.");
+        liveCheck(); // Trigger highlights
     } catch (const runtime_error& e) {
         QMessageBox::critical(this, "Analysis Error", e.what());
         statusLabel->setText("Error: Analysis failed.");
+        liveCheck(); // Trigger highlights
     }
 }
 
@@ -595,9 +708,12 @@ void MainWindow::setupUI() {
     sourceLayout->setContentsMargins(0, 0, 0, 0);
     QLabel *sourceLabel = new QLabel("Source Code Input");
     sourceLabel->setStyleSheet(QString("background-color: %1; color: %2; padding: 10px; font-weight: bold; border-top: 1px solid %3; border-bottom: 1px solid %3;").arg(COLOR_BACKGROUND_MID, COLOR_TEXT_PRIMARY, COLOR_BORDER));
-    sourceCodeEdit = new QTextEdit();
+
+    // CHANGED: Use custom CodeEditor
+    sourceCodeEdit = new CodeEditor();
     sourceCodeEdit->setObjectName("sourceCodeEdit");
     sourceCodeEdit->setStyleSheet(QString("background-color: %1; color: %2; font-family: 'Courier New'; font-size: 13px; border: none; padding: 10px;").arg(COLOR_BACKGROUND_DARK, COLOR_TEXT_PRIMARY));
+
     sourceLayout->addWidget(sourceLabel);
     sourceLayout->addWidget(sourceCodeEdit);
 
@@ -653,7 +769,9 @@ FunctionDef  -> 'def' ID '(' Params ')' ':' Block
 Params       -> ID ParamTail | ε
 ParamTail    -> ',' ID ParamTail | ε
 
-ForStmt      -> 'for' ID 'in' 'range' '(' Expression, Expression, Expression ')' ':' Block
+ForStmt      -> 'for' ID 'in' LoopSource
+LoopSource   -> 'range' '(' Expression, Expression, Expression ')' ':' Block
+LoopSource   -> Expression ':' Block  (Generic Iterable)
 
 IfStmt       -> 'if' Expression ':' Block ElseClause
 ElseClause   -> 'elif' Expression ':' Block ElseClause
@@ -664,6 +782,7 @@ WhileStmt    -> 'while' Expression ':' Block
 ReturnStmt   -> 'return' Expression | 'return'
 PrintStmt    -> 'print' Expression
 Assignment   -> ID '=' Expression
+Assignment   -> ID ('+=' | '-=' | '*=' | '/=') Expression
 
 Expression   -> LogicalOr
 LogicalOr    -> Comparison LogicalOr'
@@ -681,7 +800,7 @@ Factor       -> Unary Factor'
 Factor'      -> MulOp Unary Factor' | ε
 MulOp        -> '*' | '/'
 
-Unary        -> 'not' Unary | Primary
+Unary        -> 'not' Unary | '-' Unary | Primary
 Primary      -> NUMBER | STRING | ID | FuncCall | 'True' | 'False' | 'None' | '(' Expression ')'
 
 FuncCall     -> ID '(' Arguments ')'

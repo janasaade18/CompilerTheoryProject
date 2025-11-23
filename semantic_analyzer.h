@@ -24,9 +24,13 @@ public:
 private:
     SymbolTable m_symbol_table;
     FunctionDefNode* m_current_function = nullptr; // To track return types
+    int m_current_line = 0; // NEW: Tracks the current line being analyzed
 
     void visit(ASTNode* node);
     DataType getExpressionType(ASTNode* node);
+
+    // Helper to throw errors with line numbers
+    void error(const string& msg);
 };
 
 #endif // SEMANTIC_ANALYZER_H

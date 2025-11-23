@@ -22,6 +22,11 @@ SemanticAnalyzer::SemanticAnalyzer() {
     if(auto sym = m_symbol_table.lookup("input")) sym->functionReturnType = DataType::STRING;
 }
 
+void SemanticAnalyzer::error(const string& msg) {
+    // Throw error stamped with the current line number found in AST traversal
+    throw SemanticError(msg + " at line " + to_string(m_current_line));
+}
+
 void SemanticAnalyzer::analyze(ProgramNode* program) {
     // Process all statements in the main body
     for (const auto& statement : program->statements) {
@@ -31,6 +36,9 @@ void SemanticAnalyzer::analyze(ProgramNode* program) {
 
 void SemanticAnalyzer::visit(ASTNode* node) {
     if (!node) return;
+
+    // NEW: Update current line if node has one
+    if (node->getLine() > 0) m_current_line = node->getLine();
 
     // --- 1. Assignment ---
     if (auto p = dynamic_cast<AssignmentNode*>(node)) {
@@ -44,9 +52,9 @@ void SemanticAnalyzer::visit(ASTNode* node) {
                 if (existing->type == DataType::FLOAT && exprType == DataType::INTEGER) {
                     // Allow: x (float) = 5 (int)
                 } else {
-                    throw SemanticError("Type Mismatch: Variable '" + p->identifier->token.value.toStdString() +
-                                        "' is type " + DataTypeToString(existing->type).toStdString() +
-                                        " but assigned " + DataTypeToString(exprType).toStdString());
+                    error("Type Mismatch: Variable '" + p->identifier->token.value.toStdString() +
+                          "' is type " + DataTypeToString(existing->type).toStdString() +
+                          " but assigned " + DataTypeToString(exprType).toStdString());
                 }
             }
         } else {
@@ -63,7 +71,7 @@ void SemanticAnalyzer::visit(ASTNode* node) {
     else if (auto p = dynamic_cast<FunctionDefNode*>(node)) {
         QString funcName = p->name->token.value;
         if (!m_symbol_table.define(funcName, DataType::FUNCTION)) {
-            throw SemanticError("Function '" + funcName.toStdString() + "' already defined.");
+            error("Function '" + funcName.toStdString() + "' already defined.");
         }
 
         m_current_function = p; // Track current function context
@@ -87,9 +95,9 @@ void SemanticAnalyzer::visit(ASTNode* node) {
 
         if (p->isRange) {
             if(getExpressionType(p->start.get()) != DataType::INTEGER)
-                throw SemanticError("Loop range 'start' must be Integer.");
+                error("Loop range 'start' must be Integer.");
             if(getExpressionType(p->stop.get()) != DataType::INTEGER)
-                throw SemanticError("Loop range 'stop' must be Integer.");
+                error("Loop range 'stop' must be Integer.");
 
             p->iterator->determined_type = DataType::INTEGER;
             m_symbol_table.define(p->iterator->token.value, DataType::INTEGER);
@@ -134,7 +142,7 @@ void SemanticAnalyzer::visit(ASTNode* node) {
     // --- 7. Return Statement ---
     else if (auto p = dynamic_cast<ReturnNode*>(node)) {
         if (!m_current_function) {
-            throw SemanticError("Return statement outside of function.");
+            error("Return statement outside of function.");
         }
 
         DataType returnType = DataType::NONE;
@@ -150,10 +158,10 @@ void SemanticAnalyzer::visit(ASTNode* node) {
                 if (funcSym->functionReturnType == DataType::FLOAT && returnType == DataType::INTEGER) {
                     // OK
                 } else {
-                    throw SemanticError("Inconsistent return types in function '" +
-                                        m_current_function->name->token.value.toStdString() +
-                                        "'. Expected " + DataTypeToString(funcSym->functionReturnType).toStdString() +
-                                        ", got " + DataTypeToString(returnType).toStdString());
+                    error("Inconsistent return types in function '" +
+                          m_current_function->name->token.value.toStdString() +
+                          "'. Expected " + DataTypeToString(funcSym->functionReturnType).toStdString() +
+                          ", got " + DataTypeToString(returnType).toStdString());
                 }
             }
         }
@@ -173,6 +181,8 @@ void SemanticAnalyzer::visit(ASTNode* node) {
 
 DataType SemanticAnalyzer::getExpressionType(ASTNode* node) {
     if (!node) return DataType::UNDEFINED;
+    // Update line tracker for expressions too
+    if (node->getLine() > 0) m_current_line = node->getLine();
 
     if (auto p = dynamic_cast<NumberNode*>(node)) {
         if (p->token.value.contains('.')) {
@@ -194,7 +204,7 @@ DataType SemanticAnalyzer::getExpressionType(ASTNode* node) {
     if (auto p = dynamic_cast<IdentifierNode*>(node)) {
         Symbol* sym = m_symbol_table.lookup(p->token.value);
         if (!sym) {
-            throw SemanticError("Variable '" + p->token.value.toStdString() + "' is not defined.");
+            error("Variable '" + p->token.value.toStdString() + "' is not defined.");
         }
         p->determined_type = sym->type;
         return sym->type;
@@ -212,7 +222,7 @@ DataType SemanticAnalyzer::getExpressionType(ASTNode* node) {
                     p->determined_type = DataType::STRING;
                     return DataType::STRING;
                 }
-                throw SemanticError("Cannot perform arithmetic on Strings (except +).");
+                error("Cannot perform arithmetic on Strings (except +).");
             }
 
             if (left == DataType::FLOAT || right == DataType::FLOAT) {
@@ -248,7 +258,7 @@ DataType SemanticAnalyzer::getExpressionType(ASTNode* node) {
 
     if (auto p = dynamic_cast<FunctionCallNode*>(node)) {
         Symbol* sym = m_symbol_table.lookup(p->name->token.value);
-        if (!sym) throw SemanticError("Function '" + p->name->token.value.toStdString() + "' not defined.");
+        if (!sym) error("Function '" + p->name->token.value.toStdString() + "' not defined.");
 
         for(auto& arg : p->arguments) {
             getExpressionType(arg.get());

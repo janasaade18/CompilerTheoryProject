@@ -33,8 +33,11 @@ void Parser::expect(TokenType type) {
     if (currentToken().type == type) {
         advance();
     } else {
-        // Simple error recovery: Skip to next line or just advance
-        advance();
+        // CHANGED: Throw exception to trigger error detection
+        Token cur = currentToken();
+        QString msg = "Syntax Error: Expected token type " + QString::number((int)type) +
+                      " but found '" + cur.value + "' at line " + QString::number(cur.line);
+        throw runtime_error(msg.toStdString());
     }
 }
 
@@ -62,6 +65,10 @@ unique_ptr<BlockNode> Parser::parseBlock() {
 
     if (currentToken().type == TokenType::INDENT) {
         advance();
+    } else {
+        // Explicit check for indentation start
+        Token t = currentToken();
+        throw runtime_error("Indentation Error: Expected INDENT at line " + to_string(t.line));
     }
 
     while (currentToken().type != TokenType::DEDENT && currentToken().type != TokenType::END_OF_FILE) {
@@ -126,15 +133,14 @@ unique_ptr<ASTNode> Parser::parseAssignmentOrExpression() {
     }
 
     // Case 2: Complex Assignment via Desugaring (x += 5 -> x = x + 5)
-    // Lexer gives tokens: ID, PLUS, EQUAL, NUM
     bool isComplex = false;
-    TokenType binOp;
+    Token opToken; // Placeholder for initialization
 
     if (next2.type == TokenType::EQUAL) {
-        if (next1.type == TokenType::PLUS) { isComplex = true; binOp = TokenType::PLUS; }
-        else if (next1.type == TokenType::MINUS) { isComplex = true; binOp = TokenType::MINUS; }
-        else if (next1.type == TokenType::STAR) { isComplex = true; binOp = TokenType::STAR; }
-        else if (next1.type == TokenType::SLASH) { isComplex = true; binOp = TokenType::SLASH; }
+        if (next1.type == TokenType::PLUS) { isComplex = true; }
+        else if (next1.type == TokenType::MINUS) { isComplex = true; }
+        else if (next1.type == TokenType::STAR) { isComplex = true; }
+        else if (next1.type == TokenType::SLASH) { isComplex = true; }
     }
 
     if (isComplex) {
@@ -144,7 +150,7 @@ unique_ptr<ASTNode> Parser::parseAssignmentOrExpression() {
         auto rightId = make_unique<IdentifierNode>(idToken); // For RHS inside binary op
 
         advance(); // consume ID
-        Token opToken = currentToken(); // The +, -, *, /
+        opToken = currentToken(); // The +, -, *, /
         advance(); // consume Op
         advance(); // consume =
 
@@ -402,7 +408,7 @@ unique_ptr<ASTNode> Parser::parsePrimary() {
         return name;
     }
     default:
-        advance();
-        return nullptr;
+        // CHANGED: Trigger error detection
+        throw runtime_error("Syntax Error: Unexpected token '" + t.value.toStdString() + "' at line " + to_string(t.line));
     }
 }
