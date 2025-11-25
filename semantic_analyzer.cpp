@@ -37,7 +37,7 @@ void SemanticAnalyzer::analyze(ProgramNode* program) {
 void SemanticAnalyzer::visit(ASTNode* node) {
     if (!node) return;
 
-    // NEW: Update current line if node has one
+    // Update current line if node has one
     if (node->getLine() > 0) m_current_line = node->getLine();
 
     // --- 1. Assignment ---
@@ -79,8 +79,15 @@ void SemanticAnalyzer::visit(ASTNode* node) {
 
         // Define Parameters
         for(const auto& param : p->parameters) {
-            param->determined_type = DataType::INTEGER;
-            m_symbol_table.define(param->token.value, DataType::INTEGER);
+            // HEURISTIC: If param name suggests string, make it string. Otherwise Integer.
+            QString pName = param->token.value;
+            DataType pType = DataType::INTEGER; // Default
+            if (pName == "text" || pName == "str" || pName == "msg" || pName == "s") {
+                pType = DataType::STRING;
+            }
+
+            param->determined_type = pType;
+            m_symbol_table.define(pName, pType);
         }
 
         visit(p->body.get());
@@ -181,7 +188,6 @@ void SemanticAnalyzer::visit(ASTNode* node) {
 
 DataType SemanticAnalyzer::getExpressionType(ASTNode* node) {
     if (!node) return DataType::UNDEFINED;
-    // Update line tracker for expressions too
     if (node->getLine() > 0) m_current_line = node->getLine();
 
     if (auto p = dynamic_cast<NumberNode*>(node)) {
@@ -217,13 +223,20 @@ DataType SemanticAnalyzer::getExpressionType(ASTNode* node) {
         if (p->op.type == TokenType::PLUS || p->op.type == TokenType::MINUS ||
             p->op.type == TokenType::STAR || p->op.type == TokenType::SLASH) {
 
+            // Be STRICT: Only String+String is allowed. Everything else is an error.
             if (left == DataType::STRING || right == DataType::STRING) {
                 if (p->op.type == TokenType::PLUS) {
-                    p->determined_type = DataType::STRING;
-                    return DataType::STRING;
+                    if (left == DataType::STRING && right == DataType::STRING) {
+                        p->determined_type = DataType::STRING;
+                        return DataType::STRING;
+                    }
+                    // If we have String + Int (or vice versa), THROW ERROR.
+                    error("Type Mismatch: Cannot add " + DataTypeToString(left).toStdString() + " and " + DataTypeToString(right).toStdString());
                 }
+                // Minus, Star, Slash on strings -> ERROR
                 error("Cannot perform arithmetic on Strings (except +).");
             }
+
 
             if (left == DataType::FLOAT || right == DataType::FLOAT) {
                 p->determined_type = DataType::FLOAT;

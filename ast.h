@@ -18,6 +18,8 @@ struct ASTNode {
     virtual int getLine() const { return 0; }
 };
 
+
+// A Python script is just a list of statements executed one after another. This node holds that list.
 struct ProgramNode : ASTNode {
     vector<unique_ptr<ASTNode>> statements;
     QString getNodeName() const override { return "Program"; }

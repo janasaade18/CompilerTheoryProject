@@ -7,6 +7,16 @@ using namespace std;
 
 Translator::Translator(const SymbolTable& symbolTable) : m_symbol_table(symbolTable) {}
 
+// --- THE FIX: Helper to detect statements that do nothing ---
+bool isUselessStatement(const ASTNode* node) {
+    if (dynamic_cast<const NumberNode*>(node)) return true;     // e.g. "123"
+    if (dynamic_cast<const StringNode*>(node)) return true;     // e.g. "hello"
+    if (dynamic_cast<const NoneNode*>(node)) return true;       // e.g. None
+    if (dynamic_cast<const IdentifierNode*>(node)) return true; // e.g. "x" (variable by itself)
+    // We do NOT filter BinaryOp (math) or FunctionCallNode, as those might have side effects
+    return false;
+}
+
 QString Translator::translate(const ProgramNode* program) {
     declaredVariables.clear(); // Reset declarations for a fresh run
     QString result;
@@ -33,6 +43,12 @@ QString Translator::translate(const ProgramNode* program) {
 
     // 3. Separate Functions from Main Script
     for (const auto& stmt : program->statements) {
+        // --- APPLY THE FIX ---
+        // Skip statements that don't do anything
+        if (isUselessStatement(stmt.get())) {
+            continue;
+        }
+
         if (dynamic_cast<const FunctionDefNode*>(stmt.get())) {
             functionsCode += translateNode(stmt.get()) + "\n";
         } else {
@@ -257,6 +273,11 @@ QString Translator::translateBlock(const BlockNode* block) {
     QString indent = "        "; // 8 spaces (inside main/func)
 
     for (const auto& stmt : block->statements) {
+        // --- APPLY THE FIX IN BLOCKS TOO ---
+        if (isUselessStatement(stmt.get())) {
+            continue;
+        }
+
         QString translated = translateNode(stmt.get());
 
         if (translated.endsWith("}")) {

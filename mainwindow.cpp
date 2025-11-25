@@ -506,8 +506,7 @@ void MainWindow::drawTrueAutomaton(const Parser& parser) {
 
     // OFFSETS: Adjust these to move the whole graph
     int startX = 100;
-    int startY = 250; // <--- MOVED DOWN (Was 0)
-
+    int startY = 250;
     int x = startX;
 
     // COL 1: Main Flow (Far Left)
@@ -811,7 +810,7 @@ ArgTail      -> ',' Expression ArgTail | ε
 
     // --- TAB 4: Parse Tree ---
     treeScene = new QGraphicsScene(this);
-    treeScene->setSceneRect(0, 0, 3000, 3000);
+
     ZoomableView *treeView = new ZoomableView(treeScene, this);
     treeView->setStyleSheet(QString("background-color: %1; border: none;").arg(COLOR_BACKGROUND_DARK));
     treeView->setRenderHint(QPainter::Antialiasing);

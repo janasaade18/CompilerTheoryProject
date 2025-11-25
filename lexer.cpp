@@ -11,40 +11,52 @@ Lexer::Lexer(const QString& source) : m_source(source) {
 
 vector<Token> Lexer::tokenize() {
     vector<Token> tokens;
-    bool at_start_of_line = true;
+    bool at_start_of_line = true; // Flag to track if we need to check indentation
 
     while (m_pos < m_source.length()) {
+        // --- 1. Indentation Handling  ---
+        // We only check indentation at the very beginning of a line.
         if (at_start_of_line) {
-            at_start_of_line = false;
+            at_start_of_line = false; // We are now inside the line
             int current_indent = getCurrentIndent();
 
+            // Ignore blank lines (pure whitespace or just newlines)
             if (m_pos >= m_source.length() || currentChar() == '\n') {
                 if (currentChar() == '\n') {
                     m_line++;
                     advance();
-                    at_start_of_line = true;
+                    at_start_of_line = true; // Next char starts a new line
                 }
                 continue;
             }
 
+            // Case A: Indentation Increased (Opening a Block)
+            // Example: 'if x:' -> next line has more spaces
             if (current_indent > m_indent_stack.top()) {
                 m_indent_stack.push(current_indent);
                 tokens.push_back({TokenType::INDENT, "INDENT", m_line});
-            } else if (current_indent < m_indent_stack.top()) {
+            }
+            // Case B: Indentation Decreased (Closing Block(s))
+            // Example: End of 'if' block, going back to main scope
+            else if (current_indent < m_indent_stack.top()) {
+                // We might be closing multiple nested blocks at once, so we loop/pop
                 while (current_indent < m_indent_stack.top() && m_indent_stack.size() > 1) {
                     m_indent_stack.pop();
                     tokens.push_back({TokenType::DEDENT, "DEDENT", m_line});
                 }
 
+                // Validation: The new indent level MUST match a previous level in the stack
                 if (current_indent != m_indent_stack.top()) {
                     throw runtime_error("Indentation error at line " + to_string(m_line));
                 }
             }
         }
 
-        skipWhitespace();
+        // --- 2. Standard Tokenization ---
+        skipWhitespace(); // Ignore spaces between tokens (e.g., x = 5)
         if (m_pos >= m_source.length()) break;
 
+        // Handle Newlines (Reset the line flag)
         if (currentChar() == '\n') {
             at_start_of_line = true;
             m_line++;
@@ -52,14 +64,18 @@ vector<Token> Lexer::tokenize() {
             continue;
         }
 
+        // Handle Comments (Ignore everything until the end of the line)
         if (currentChar() == '#') {
             skipComment();
             continue;
         }
 
+        // Identify the next token (Identifier, Number, Symbol, etc.)
         tokens.push_back(getNextTokenFromSource());
     }
 
+
+    // Implicitly close any blocks that are still open at EOF
     while (m_indent_stack.top() > 0) {
         m_indent_stack.pop();
         tokens.push_back({TokenType::DEDENT, "DEDENT", m_line});
